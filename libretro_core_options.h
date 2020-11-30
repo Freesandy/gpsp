@@ -4,15 +4,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <libretro.h>
-#include <retro_inline.h>
+#include "libretro.h"
+#include "retro_inline.h"
 
 #ifndef HAVE_NO_LANGEXTRA
 #include "libretro_core_options_intl.h"
-#endif
-
-#if defined(_3DS) && defined(HAVE_DYNAREC)
-#include "3ds/3ds_utils.h"
 #endif
 
 /*
@@ -54,22 +50,116 @@ extern "C" {
 
 struct retro_core_option_definition option_defs_us[] = {
    {
-      "gpsp_frameskip",
-      "Frameskip",
-      "Skip frames to avoid audio buffer under-run (crackling). Improves performance at the expense of visual smoothness. 'Auto' skips frames when advised by the frontend. 'Auto (Threshold)' utilises the 'Frameskip Threshold (%)' setting. 'Fixed Interval' utilises the 'Frameskip Interval' setting.",
+      "mgba_solar_sensor_level",
+      "光线传感器级别",
+      "设置环境光强度. \n"
+      "可以在卡带上有光线传感器的游戏上使用, 例如《我们的太阳》系列. ",
+      {
+         { "0",  NULL },
+         { "1",  NULL },
+         { "2",  NULL },
+         { "3",  NULL },
+         { "4",  NULL },
+         { "5",  NULL },
+         { "6",  NULL },
+         { "7",  NULL },
+         { "8",  NULL },
+         { "9",  NULL },
+         { "10", NULL },
+         { NULL, NULL },
+      },
+      "0"
+   },
+   {
+      "mgba_allow_opposing_directions",
+      "允许相反方向输入",
+      "允许同时按下/快速切换/同时按住左右或者上下方向键, 这可能会引起移动方面的问题. ",
+      {
+         { "no",  "disabled" },
+         { "yes", "enabled" },
+         { NULL, NULL },
+      },
+      "no"
+   },
+   {
+      "mgba_gb_model",
+      "Game Boy型号 (须重启)",
+      "使用指定的Game Boy型号运行游戏. \n"
+      "'自动检测'会为当前游戏选择最适合的型号. ",
+      {
+         { "Autodetect",       "自动检测" },
+         { "Game Boy",         NULL },
+         { "Super Game Boy",   NULL },
+         { "Game Boy Color",   NULL },
+         { "Game Boy Advance", NULL },
+         { NULL, NULL },
+      },
+      "Autodetect"
+   },
+   {
+      "mgba_use_bios",
+      "使用BIOS文件 (须重启)",
+      "使用官方BIOS/引导程序, 如果在RetroArch系统目录下有的话. ",
+      {
+         { "ON",  "启用" },
+         { "OFF", "禁用" },
+         { NULL, NULL },
+      },
+      "ON"
+   },
+   {
+      "mgba_skip_bios",
+      "跳过BIOS启动画面 (须重启)",
+      "使用官方BIOS/引导程序时, 跳过启动标题画面. \n"
+      "'使用BIOS文件 (须重启)'禁用时, 此项忽略. ",
+      {
+         { "OFF", "禁用" },
+         { "ON",  "启用" },
+         { NULL, NULL },
+      },
+      "OFF"
+   },
+   {
+      "mgba_sgb_borders",
+      "使用Super Game Boy边框 (须重启)",
+      "运行Super Game Boy增强游戏时, 显示Super Game Boy边框. ",
+      {
+         { "ON",  "启用" },
+         { "OFF", "禁用" },
+         { NULL, NULL },
+      },
+      "ON"
+   },
+   {
+      "mgba_idle_optimization",
+      "移除空循环",
+      "缩短系统载入时间, 通过优化'空循环' - 这些代码不做任何事, 但是CPU全速运转 (类似汽车的空档运转). \n"
+      "此项可以提升性能, 在低端设备上应该启用. ",
+      {
+         { "Remove Known",      "移除已知代码" },
+         { "Detect and Remove", "检测并移除" },
+         { "Don't Remove",      "不移除" },
+         { NULL, NULL },
+      },
+      "Remove Known"
+   },
+   {
+      "mgba_frameskip",
+      "跳帧",
+      "跳过一定帧数, 以改善性能, 代价是牺牲画面流畅度. '自动' 根据前台设置跳帧. '自动 (阈值)' 利用跳帧阈值(%)的设定跳帧. '固定间隔'利用跳帧间隔的设定跳帧.",
       {
          { "disabled",       NULL },
-         { "auto",           "Auto" },
-         { "auto_threshold", "Auto (Threshold)" },
-         { "fixed_interval", "Fixed Interval" },
+         { "auto",           "自动" },
+         { "auto_threshold", "自动 (阈值)" },
+         { "fixed_interval", "固定间隔" },
          { NULL, NULL },
       },
       "disabled"
    },
    {
-      "gpsp_frameskip_threshold",
-      "Frameskip Threshold (%)",
-      "When 'Frameskip' is set to 'Auto (Threshold)', specifies the audio buffer occupancy threshold (percentage) below which frames will be skipped. Higher values reduce the risk of crackling by causing frames to be dropped more frequently.",
+      "mgba_frameskip_threshold",
+      "跳帧阈值(%)",
+      "当'跳帧'设置为自动(阈值)'时, 低于指定音频缓冲区占用阈值(百分比)时跳帧. 较高的值可降低音频破音的风险. ",
       {
          { "15", NULL },
          { "18", NULL },
@@ -92,9 +182,10 @@ struct retro_core_option_definition option_defs_us[] = {
       "33"
    },
    {
-      "gpsp_frameskip_interval",
-      "Frameskip Interval",
-      "When 'Frameskip' is set to 'Fixed Interval', the value set here is the number of frames omitted after a frame is rendered - i.e. '0' = 60fps, '1' = 30fps, '2' = 15fps, etc.",
+      "mgba_frameskip_interval",
+      "跳帧间隔",
+      "跳过一定帧数, 以改善性能, 代价是牺牲画面流畅度. \n"
+      "这里设置的值是每渲染一帧后跳过的帧数 - 即'0' = 60fps, '1' = 30fps, '2' = 20fps, 以此类推. ",
       {
          { "0",  NULL },
          { "1",  NULL },
@@ -109,54 +200,53 @@ struct retro_core_option_definition option_defs_us[] = {
          { "10", NULL },
          { NULL, NULL },
       },
-      "1"
+      "0"
    },
+#if defined(COLOR_16_BIT) && defined(COLOR_5_6_5)
    {
-      "gpsp_color_correction",
-      "Color Correction",
-      "Adjusts output colors to match the display of real GBA hardware.",
+      "mgba_color_correction",
+      "色彩校正",
+      "调整输出色彩以匹配真实GBA/GBC的显示效果. ",
       {
-         { "enabled",  NULL },
-         { "disabled", NULL },
+         { "OFF",  "禁用" },
+         { "GBA",  "Game Boy Advance" },
+         { "GBC",  "Game Boy Color" },
+         { "Auto", "自动" },
          { NULL, NULL },
       },
-      "disabled"
+      "OFF"
    },
    {
-      "gpsp_frame_mixing",
-      "Interframe Blending",
-      "Simulates LCD ghosting effects by performing a 50:50 mix of the current and previous frames. Required for correct operation when playing games that exploit LCD ghosting for transparency effects (F-Zero, the Boktai series, etc.).",
+      "mgba_interframe_blending",
+      "帧间混合",
+      "模拟LCD屏幕鬼影效果. \n"
+      "'简单'以50:50比例混合当前帧和上一帧. '只能'尝试检测屏幕闪烁, 只对受影响的像素进行50:50混合. \n"
+      "'LCD鬼影'通过混合多个缓冲帧来模拟原生LCD响应时间. \n"
+      "'简单'或'智能'是某些运行游戏必需的, 这些游戏通过主动激发LCD鬼影来实现透明特效 (Wave Race, Chikyuu Kaihou Gun ZAS, F-Zero, the Boktai series...)",
       {
-         { "enabled",  NULL },
-         { "disabled", NULL },
+         { "OFF",               "禁用" },
+         { "mix",               "简单 (精确)" },
+         { "mix_fast",          "简单 (快速)" },
+         { "mix_smart",         "智能 (精确)" },
+         { "mix_smart_fast",    "智能 (快速)" },
+         { "lcd_ghosting",      "LCD鬼影 (精确)" },
+         { "lcd_ghosting_fast", "LCD鬼影 (快速)" },
          { NULL, NULL },
       },
-      "disabled"
-   },
-   {
-      "gpsp_save_method",
-      "Backup Save Method (Restart)",
-      "Choose the data format used for cartridge save files. 'gpSP' can be used for compatibility with the stand-alone version of gpSP. 'libretro' provides better integration with the frontend.",
-      {
-         { "gpSP",     NULL },
-         { "libretro", NULL },
-         { NULL, NULL },
-      },
-      "gpSP"
-   },
-#if defined(HAVE_DYNAREC)
-   {
-      "gpsp_drc",
-      "Dynamic Recompiler (Restart)",
-      "Dynamically recompile CPU instructions to native instructions. Greatly improves performance, but may reduce accuracy.",
-      {
-         { "enabled",  NULL },
-         { "disabled", NULL },
-         { NULL, NULL },
-      },
-      "enabled"
+      "OFF"
    },
 #endif
+	{
+      "mgba_force_gbp",
+      "开启GBP震动 (需重启)",
+      "启用此功能将允许带有Game Boy Player启动标志的兼容游戏震动.  由于任天堂决定此功能应该起作用的方式, 因此在某些游戏中可能会引起故障, 例如闪烁或延迟. ",
+      {
+         { "OFF", "禁用" },
+         { "ON",  "启用" },
+         { NULL, NULL },
+      },
+      "OFF"
+   },
    { NULL, NULL, NULL, {{0}}, NULL },
 };
 
@@ -173,7 +263,7 @@ struct retro_core_option_definition *option_defs_intl[RETRO_LANGUAGE_LAST] = {
    NULL,           /* RETRO_LANGUAGE_FRENCH */
    NULL,           /* RETRO_LANGUAGE_SPANISH */
    NULL,           /* RETRO_LANGUAGE_GERMAN */
-   NULL,           /* RETRO_LANGUAGE_ITALIAN */
+   option_defs_it, /* RETRO_LANGUAGE_ITALIAN */
    NULL,           /* RETRO_LANGUAGE_DUTCH */
    NULL,           /* RETRO_LANGUAGE_PORTUGUESE_BRAZIL */
    NULL,           /* RETRO_LANGUAGE_PORTUGUESE_PORTUGAL */
@@ -186,11 +276,7 @@ struct retro_core_option_definition *option_defs_intl[RETRO_LANGUAGE_LAST] = {
    NULL,           /* RETRO_LANGUAGE_VIETNAMESE */
    NULL,           /* RETRO_LANGUAGE_ARABIC */
    NULL,           /* RETRO_LANGUAGE_GREEK */
-   NULL,           /* RETRO_LANGUAGE_TURKISH */
-   NULL,           /* RETRO_LANGUAGE_SLOVAK */
-   NULL,           /* RETRO_LANGUAGE_PERSIAN */
-   NULL,           /* RETRO_LANGUAGE_HEBREW */
-   NULL,           /* RETRO_LANGUAGE_ASTURIAN */
+   option_defs_tr, /* RETRO_LANGUAGE_TURKISH */
 };
 #endif
 
@@ -214,18 +300,6 @@ static INLINE void libretro_set_core_options(retro_environment_t environ_cb)
 
    if (!environ_cb)
       return;
-
-#if defined(_3DS) && (HAVE_DYNAREC)
-   if(!__ctr_svchax)
-   {
-      /* Critical error - dynarec is force
-       * disabled, so remove 'gpsp_drc' option */
-      option_defs_us[6].key           = NULL;
-      option_defs_us[6].desc          = NULL;
-      option_defs_us[6].info          = NULL;
-      option_defs_us[6].default_value = NULL;
-   }
-#endif
 
    if (environ_cb(RETRO_ENVIRONMENT_GET_CORE_OPTIONS_VERSION, &version) && (version >= 1))
    {
@@ -253,11 +327,12 @@ static INLINE void libretro_set_core_options(retro_environment_t environ_cb)
       char **values_buf                = NULL;
 
       /* Determine number of options */
-      for (;;)
+      while (true)
       {
-         if (!option_defs_us[num_options].key)
+         if (option_defs_us[num_options].key)
+            num_options++;
+         else
             break;
-         num_options++;
       }
 
       /* Allocate arrays */
@@ -284,18 +359,20 @@ static INLINE void libretro_set_core_options(retro_environment_t environ_cb)
             size_t num_values = 0;
 
             /* Determine number of values */
-            for (;;)
+            while (true)
             {
-               if (!values[num_values].value)
+               if (values[num_values].value)
+               {
+                  /* Check if this is the default value */
+                  if (default_value)
+                     if (strcmp(values[num_values].value, default_value) == 0)
+                        default_index = num_values;
+
+                  buf_len += strlen(values[num_values].value);
+                  num_values++;
+               }
+               else
                   break;
-
-               /* Check if this is the default value */
-               if (default_value)
-                  if (strcmp(values[num_values].value, default_value) == 0)
-                     default_index = num_values;
-
-               buf_len += strlen(values[num_values].value);
-               num_values++;
             }
 
             /* Build values string */
