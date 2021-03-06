@@ -7,40 +7,40 @@
 .globl memory_map_write
 .globl reg
 
-#define REG_BASE_OFFSET   1024
+#define REG_R0            (0 * 4)
+#define REG_R1            (1 * 4)
+#define REG_R2            (2 * 4)
+#define REG_R3            (3 * 4)
+#define REG_R4            (4 * 4)
+#define REG_R5            (5 * 4)
+#define REG_R6            (6 * 4)
+#define REG_R7            (7 * 4)
+#define REG_R8            (8 * 4)
+#define REG_R9            (9 * 4)
+#define REG_R10           (10 * 4)
+#define REG_R11           (11 * 4)
+#define REG_R12           (12 * 4)
+#define REG_R13           (13 * 4)
+#define REG_R14           (14 * 4)
+#define REG_SP            (13 * 4)
+#define REG_LR            (14 * 4)
+#define REG_PC            (15 * 4)
 
-#define REG_R0            (REG_BASE_OFFSET + (0 * 4))
-#define REG_R1            (REG_BASE_OFFSET + (1 * 4))
-#define REG_R2            (REG_BASE_OFFSET + (2 * 4))
-#define REG_R3            (REG_BASE_OFFSET + (3 * 4))
-#define REG_R4            (REG_BASE_OFFSET + (4 * 4))
-#define REG_R5            (REG_BASE_OFFSET + (5 * 4))
-#define REG_R6            (REG_BASE_OFFSET + (6 * 4))
-#define REG_R7            (REG_BASE_OFFSET + (7 * 4))
-#define REG_R8            (REG_BASE_OFFSET + (8 * 4))
-#define REG_R9            (REG_BASE_OFFSET + (9 * 4))
-#define REG_R10           (REG_BASE_OFFSET + (10 * 4))
-#define REG_R11           (REG_BASE_OFFSET + (11 * 4))
-#define REG_R12           (REG_BASE_OFFSET + (12 * 4))
-#define REG_R13           (REG_BASE_OFFSET + (13 * 4))
-#define REG_R14           (REG_BASE_OFFSET + (14 * 4))
-#define REG_SP            (REG_BASE_OFFSET + (13 * 4))
-#define REG_LR            (REG_BASE_OFFSET + (14 * 4))
-#define REG_PC            (REG_BASE_OFFSET + (15 * 4))
+#define REG_N_FLAG        (16 * 4)
+#define REG_Z_FLAG        (17 * 4)
+#define REG_C_FLAG        (18 * 4)
+#define REG_V_FLAG        (19 * 4)
+#define REG_CPSR          (20 * 4)
 
-#define REG_N_FLAG        (REG_BASE_OFFSET + (16 * 4))
-#define REG_Z_FLAG        (REG_BASE_OFFSET + (17 * 4))
-#define REG_C_FLAG        (REG_BASE_OFFSET + (18 * 4))
-#define REG_V_FLAG        (REG_BASE_OFFSET + (19 * 4))
-#define REG_CPSR          (REG_BASE_OFFSET + (20 * 4))
+#define REG_SAVE          (21 * 4)
+#define REG_SAVE2         (22 * 4)
+#define REG_SAVE3         (23 * 4)
 
-#define REG_SAVE          (REG_BASE_OFFSET + (21 * 4))
-#define REG_SAVE2         (REG_BASE_OFFSET + (22 * 4))
-#define REG_SAVE3         (REG_BASE_OFFSET + (23 * 4))
+#define CPU_MODE          (29 * 4)
+#define CPU_HALT_STATE    (30 * 4)
+#define CHANGED_PC_STATUS (31 * 4)
 
-#define CPU_MODE          (REG_BASE_OFFSET + (29 * 4))
-#define CPU_HALT_STATE    (REG_BASE_OFFSET + (30 * 4))
-#define CHANGED_PC_STATUS (REG_BASE_OFFSET + (31 * 4))
+#define REG_HOST_SP       (32 * 4)
 
 
 #define reg_a0            r0
@@ -140,20 +140,18 @@
 #define restore_flags()                                                      ;\
   msr cpsr_f, reg_flags                                                      ;\
 
-#ifdef __ARM_EABI__
-  @ must align stack
-  #define call_c_saved_regs r2, r3, r12, lr
-#else
-  #define call_c_saved_regs r3, r12, lr
-#endif
+@ Align the stack to 64 bits (ABIs that don't require it, still recommend so)
+#define call_c_saved_regs r2, r3, r12, lr
 
-@ Calls a C function - all caller save registers which are important to the
-@ dynarec and to returning from this function are saved.
+@ Calls a C function - reloads the stack pointer and saves all caller save
+@ registers which are important to the dynarec.
 
 #define call_c_function(function)                                            ;\
+  ldr sp, [reg_base, #REG_HOST_SP]                                           ;\
   stmdb sp!, { call_c_saved_regs }                                           ;\
   bl function                                                                ;\
   ldmia sp!, { call_c_saved_regs }                                           ;\
+  ldr sp, =base_reg_area                                                     ;\
 
 
 @ Update the GBA hardware (video, sound, input, etc)
@@ -481,15 +479,14 @@ execute_swi_function_builder(div, thumb)
 .globl _execute_arm_translate
 execute_arm_translate:
 _execute_arm_translate:
-  sub sp, sp, #0x100                      @ allocate room for register data
+  ldr r1, =base_reg_area                  @ base_reg_area to r1
+  str sp, [r1, #REG_HOST_SP]              @ store the current sp
+  ldr sp, =base_reg_area                  @ reg_base = sp (loading addr)
 
   mvn reg_cycles, r0                      @ load cycle counter
 
   mov r0, reg_base                        @ load reg_base into first param
   call_c_function(move_reg)               @ make reg_base the new reg ptr
-
-  sub sp, sp, #REG_BASE_OFFSET            @ allocate room for ptr table
-  bl load_ptr_read_function_table         @ load read function ptr table
 
   ldr r0, [reg_base, #REG_PC]             @ r0 = current pc
   ldr r1, [reg_base, #REG_CPSR]           @ r1 = flags
@@ -518,7 +515,7 @@ _execute_arm_translate:
 
 #define execute_store_body(store_type, store_op)                             ;\
   save_flags()                                                               ;\
-  stmdb sp!, { lr }                       /* save lr                       */;\
+  str lr, [reg_base, #REG_SAVE3]          /* save lr                       */;\
   tst r0, #0xF0000000                     /* make sure address is in range */;\
   bne ext_store_u##store_type             /* if not do ext store           */;\
                                                                              ;\
@@ -558,18 +555,18 @@ _execute_store_u##store_type:                                                ;\
                                                                              ;\
   cmp r0, #0                              /* see if it's not 0             */;\
   bne 2f                                  /* if so perform smc write       */;\
-  ldmia sp!, { lr }                       /* restore lr                    */;\
+  ldr lr, [reg_base, #REG_SAVE3]          /* restore lr                    */;\
   restore_flags()                                                            ;\
   add pc, lr, #4                          /* return                        */;\
                                                                              ;\
 2:                                                                           ;\
-  ldmia sp!, { lr }                       /* restore lr                    */;\
+  ldr lr, [reg_base, #REG_SAVE3]          /* restore lr                    */;\
   ldr r0, [lr]                            /* load PC                       */;\
   str r0, [reg_base, #REG_PC]             /* write out PC                  */;\
   b smc_write                             /* perform smc write             */;\
                                                                              ;\
 ext_store_u##store_type:                                                     ;\
-  ldmia sp!, { lr }                       /* pop lr off of stack           */;\
+  ldr lr, [reg_base, #REG_SAVE3]          /* pop lr off of stack           */;\
   ldr r2, [lr]                            /* load PC                       */;\
   str r2, [reg_base, #REG_PC]             /* write out PC                  */;\
   store_align_##store_type()                                                 ;\
@@ -587,10 +584,10 @@ execute_store_u32_safe:
 _execute_store_u32_safe:
   execute_store_body(32_safe, str)
   restore_flags()
-  ldmia sp!, { pc }                       @ return
+  ldr pc, [reg_base, #REG_SAVE3]          @ return
 
 ext_store_u32_safe:
-  ldmia sp!, { lr }                       @ Restore lr
+  ldr lr, [reg_base, #REG_SAVE3]          @ Restore lr
   call_c_function(write_memory32)         @ Perform 32bit store
   restore_flags()
   bx lr                                   @ Return
@@ -612,7 +609,7 @@ write_epilogue:
   store_registers_arm()                   @ save ARM registers
 
 3:
-  bl update_gba                           @ update GBA until CPU isn't halted
+  call_c_function(update_gba)             @ update GBA until CPU isn't halted
 
   mvn reg_cycles, r0                      @ load new cycle count
   ldr r0, [reg_base, #REG_PC]             @ load new PC
@@ -731,241 +728,13 @@ execute_load_builder(u16, 16, ldrneh, #0xF0000001)
 execute_load_builder(s16, 16_signed, ldrnesh, #0xF0000001)
 execute_load_builder(u32, 32, ldrne, #0xF0000000)
 
-
-#define execute_ptr_builder(region, ptr, bits)                               ;\
-                                                                             ;\
-execute_##region##_ptr:                                                      ;\
-  ldr r1, =(ptr)                          /* load region ptr               */;\
-  mov r0, r0, lsl #(32 - bits)            /* isolate bottom bits           */;\
-  mov r0, r0, lsr #(32 - bits)                                               ;\
-  bx lr                                   /* return                        */;\
-
-
-.align 2
-.globl execute_bios_ptr_protected
-.globl _execute_bios_ptr_protected
-execute_bios_ptr_protected:
-_execute_bios_ptr_protected:
-  ldr r1, =bios_read_protect              @ load bios read ptr
-  and r0, r0, #0x03                       @ only want bottom 2 bits
-  bx lr                                   @ return
-
-
-@ address = (address & 0x7FFF) + ((address & 0x38000) * 2) + 0x8000;
-
-execute_ewram_ptr:
-  ldr r1, =(ewram + 0x8000)               @ load ewram read ptr
-  mov r2, r0, lsl #17                     @ isolate bottom 15 bits
-  mov r2, r2, lsr #17
-  and r0, r0, #0x38000                    @ isolate top 2 bits
-  add r0, r2, r0, lsl #1                  @ add top 2 bits * 2 to bottom 15
-  bx lr                                   @ return
-
-
-@  u32 gamepak_index = address >> 15;
-@  u8 *map = memory_map_read[gamepak_index];
-
-@  if(!map)
-@    map = load_gamepak_page(gamepak_index & 0x3FF);
-
-@  value = address##type(map, address & 0x7FFF)
-
-execute_gamepak_ptr:
-  ldr r1, =memory_map_read                @ load memory_map_read
-  mov r2, r0, lsr #15                     @ isolate top 17 bits
-  ldr r1, [r1, r2, lsl #2]                @ load memory map read ptr
-
-  save_flags()
-  cmp r1, #0                              @ see if map entry is NULL
-  bne 2f                                  @ if not resume
-
-  stmdb sp!, { r0 }                       @ save r0 on stack
-  mov r2, r2, lsl #20                     @ isolate page index
-  mov r0, r2, lsr #20
-  call_c_function(load_gamepak_page)      @ read new page into r0
-
-  mov r1, r0                              @ new map = return
-  ldmia sp!, { r0 }                       @ restore r0
-
-2:
-  mov r0, r0, lsl #17                     @ isolate bottom 15 bits
-  mov r0, r0, lsr #17
-  restore_flags()
-  bx lr                                   @ return
-
-
-@ These will store the result in a pointer, then pass that pointer.
-
-execute_eeprom_ptr:
-  save_flags()
-
-  call_c_function(read_eeprom)            @ load EEPROM result
-  add r1, reg_base, #(REG_SAVE & 0xFF00)
-  add r1, r1, #(REG_SAVE & 0xFF)
-  strh r0, [r1]                           @ write result out
-  mov r0, #0                              @ zero out address
-
-  restore_flags()
-  bx lr                                   @ return
-
-
-execute_backup_ptr:
-  save_flags()
-
-  mov r0, r0, lsl #16                     @ only want top 16 bits
-  mov r0, r0, lsr #16
-  call_c_function(read_backup)            @ load backup result
-  add r1, reg_base, #(REG_SAVE & 0xFF00)
-  add r1, r1, #(REG_SAVE & 0xFF)
-  strb r0, [r1]                           @ write result out
-  mov r0, #0                              @ zero out address
-
-  restore_flags()
-  bx lr                                   @ return
-
-
-execute_open_ptr:
-  ldr r1, [reg_base, #REG_CPSR]           @ r1 = cpsr
-  save_flags()
-
-  stmdb sp!, { r0 }                       @ save r0
-
-  ldr r0, [lr, #-4]                       @ r0 = current PC
-
-  tst r1, #0x20                           @ see if Thumb bit is set
-  bne 1f                                  @ if so load Thumb op
-
-  call_c_function(read_memory32)          @ read open address
-
-  add r1, reg_base, #((REG_SAVE + 4) & 0xFF00)
-  add r1, r1, #((REG_SAVE + 4) & 0xFF)
-  add r1, r1, reg_base
-  str r0, [r1]                            @ write out
-
-  ldmia sp!, { r0 }                       @ restore r0
-  and r0, r0, #0x03                       @ isolate bottom 2 bits
-
-  restore_flags()
-  bx lr
-
-1:
-  call_c_function(read_memory16)          @ read open address
-
-  orr r0, r0, r0, lsl #16                 @ duplicate opcode over halves
-  add r1, reg_base, #((REG_SAVE + 4) & 0xFF00)
-  add r1, r1, #((REG_SAVE + 4) & 0xFF)
-
-  add r1, r1, reg_base
-  str r0, [r1]                            @ write out
-
-  ldmia sp!, { r0 }                       @ restore r0
-  and r0, r0, #0x03                       @ isolate bottom 2 bits
-
-  restore_flags();
-  bx lr
-
-
-execute_ptr_builder(bios_rom, bios_rom, 14)
-execute_ptr_builder(iwram, iwram + 0x8000, 15)
-execute_ptr_builder(vram, vram, 17)
-execute_ptr_builder(oam_ram, oam_ram, 10)
-execute_ptr_builder(io_registers, io_registers, 10)
-execute_ptr_builder(palette_ram, palette_ram, 10)
-
-ptr_read_function_table:
-  .word execute_bios_ptr_protected        @ 0x00: BIOS
-  .word execute_open_ptr                  @ 0x01: open
-  .word execute_ewram_ptr                 @ 0x02: ewram
-  .word execute_iwram_ptr                 @ 0x03: iwram
-  .word execute_io_registers_ptr          @ 0x04: I/O registers
-  .word execute_palette_ram_ptr           @ 0x05: palette RAM
-  .word execute_vram_ptr                  @ 0x06: vram
-  .word execute_oam_ram_ptr               @ 0x07: oam RAM
-  .word execute_gamepak_ptr               @ 0x08: gamepak
-  .word execute_gamepak_ptr               @ 0x09: gamepak
-  .word execute_gamepak_ptr               @ 0x0A: gamepak
-  .word execute_gamepak_ptr               @ 0x0B: gamepak
-  .word execute_gamepak_ptr               @ 0x0C: gamepak
-  .word execute_eeprom_ptr                @ 0x0D: EEPROM
-  .word execute_backup_ptr                @ 0x0E: backup
-
-.rept (256 - 15)                          @ 0x0F - 0xFF: open
-  .word execute_open_ptr
-.endr
-
-
-@ Setup the read function table.
-@ Load this onto the the stack; assume we're free to use r3
-
-load_ptr_read_function_table:
-  mov r0, #256                            @ 256 elements
-  ldr r1, =ptr_read_function_table        @ r0 = ptr_read_function_table
-  mov r2, sp                              @ load here
-
-2:
-  ldr r3, [r1], #4                        @ read pointer
-  str r3, [r2], #4                        @ write pointer
-
-  subs r0, r0, #1                         @ goto next iteration
-  bne 2b
-
-  bx lr
-
-
-@ Patch the read function table to allow for BIOS reads.
-
-.align 2
-.globl execute_patch_bios_read
-.globl _execute_patch_bios_read
-execute_patch_bios_read:
-_execute_patch_bios_read:
-  ldr r1, =reg                            @ r1 = reg
-  ldr r0, =execute_bios_rom_ptr           @ r0 = patch function
-  ldr r1, [r1]
-  str r0, [r1, #-REG_BASE_OFFSET]
-  bx lr
-
-
-@ Patch the read function table to allow for BIOS reads.
-
-.align 2
-.globl execute_patch_bios_protect
-.globl _execute_patch_bios_protect
-execute_patch_bios_protect:
-_execute_patch_bios_protect:
-  ldr r1, =reg                            @ r1 = reg
-  ldr r0, =execute_bios_ptr_protected     @ r0 = patch function
-  ldr r1, [r1]
-  str r0, [r1, #-REG_BASE_OFFSET]
-  bx lr
-
-
-#define save_reg_scratch(reg)                                                 ;\
-  ldr r2, [reg_base, #(REG_BASE_OFFSET + (reg * 4))]                          ;\
-  str r2, [reg_base, #(REG_BASE_OFFSET + (reg * 4) + 128)]                    ;\
-
-#define restore_reg_scratch(reg)                                              ;\
-  ldr r2, [reg_base, #(REG_BASE_OFFSET + (reg * 4) + 128)]                    ;\
-  str r2, [reg_base, #(REG_BASE_OFFSET + (reg * 4))]                          ;\
-
-#define scratch_regs_thumb(type)                                              ;\
-  type##_reg_scratch(0)                                                       ;\
-  type##_reg_scratch(1)                                                       ;\
-  type##_reg_scratch(2)                                                       ;\
-  type##_reg_scratch(3)                                                       ;\
-  type##_reg_scratch(4)                                                       ;\
-  type##_reg_scratch(5)                                                       ;\
-
-#define scratch_regs_arm(type)                                                ;\
-  type##_reg_scratch(0)                                                       ;\
-  type##_reg_scratch(1)                                                       ;\
-  type##_reg_scratch(6)                                                       ;\
-  type##_reg_scratch(9)                                                       ;\
-  type##_reg_scratch(12)                                                      ;\
-  type##_reg_scratch(14)                                                      ;\
-
 .pool
 
 .comm memory_map_read 0x8000
 .comm memory_map_write 0x8000
+
+.data
+
+base_reg_area:
+  .space 0x100, 0
 

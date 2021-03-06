@@ -63,12 +63,6 @@ void execute_store_u32_safe(u32 address, u32 source);
   (((((u32)offset - (u32)source) - 8) >> 2) & 0xFFFFFF)                       \
 
 
-/* reg_base_offset is the amount of bytes after reg_base where the registers
- * actually begin. */
-
-#define reg_base_offset 1024
-
-
 #define reg_a0          ARMREG_R0
 #define reg_a1          ARMREG_R1
 #define reg_a2          ARMREG_R2
@@ -115,7 +109,7 @@ void execute_store_u32_safe(u32 address, u32 source);
 #define reg_x4         ARMREG_R7
 #define reg_x5         ARMREG_R8
 
-#define mem_reg        -1
+#define mem_reg        (~0U)
 
 /*
 
@@ -157,7 +151,7 @@ r15: 0.091287% (-- 100.000000%)
 
 */
 
-s32 arm_register_allocation[] =
+u32 arm_register_allocation[] =
 {
   reg_x0,       /* GBA r0  */
   reg_x1,       /* GBA r1  */
@@ -174,7 +168,7 @@ s32 arm_register_allocation[] =
   reg_x4,       /* GBA r12 */
   mem_reg,      /* GBA r13 */
   reg_x5,       /* GBA r14 */
-  reg_a0        /* GBA r15 */
+  reg_a0,       /* GBA r15 */
 
   mem_reg,
   mem_reg,
@@ -194,7 +188,7 @@ s32 arm_register_allocation[] =
   mem_reg,
 };
 
-s32 thumb_register_allocation[] =
+u32 thumb_register_allocation[] =
 {
   reg_x0,       /* GBA r0  */
   reg_x1,       /* GBA r1  */
@@ -211,7 +205,7 @@ s32 thumb_register_allocation[] =
   mem_reg,      /* GBA r12 */
   mem_reg,      /* GBA r13 */
   mem_reg,      /* GBA r14 */
-  reg_a0        /* GBA r15 */
+  reg_a0,       /* GBA r15 */
 
   mem_reg,
   mem_reg,
@@ -486,8 +480,7 @@ u32 arm_disect_imm_32bit(u32 imm, u32 *stores, u32 *rotations)
     u32 reg_use = arm_register_allocation[reg_index];                         \
     if(reg_use == mem_reg)                                                    \
     {                                                                         \
-      ARM_LDR_IMM(0, scratch_reg, reg_base,                                   \
-       (reg_base_offset + (reg_index * 4)));                                  \
+      ARM_LDR_IMM(0, scratch_reg, reg_base, (reg_index * 4));                 \
       return scratch_reg;                                                     \
     }                                                                         \
                                                                               \
@@ -517,8 +510,7 @@ u32 arm_disect_imm_32bit(u32 imm, u32 *stores, u32 *rotations)
   {                                                                           \
     if(arm_register_allocation[reg_index] == mem_reg)                         \
     {                                                                         \
-      ARM_STR_IMM(0, scratch_reg, reg_base,                                   \
-       (reg_base_offset + (reg_index * 4)));                                  \
+      ARM_STR_IMM(0, scratch_reg, reg_base, (reg_index * 4));                 \
     }                                                                         \
   }                                                                           \
                                                                               \
@@ -552,27 +544,27 @@ u32 arm_disect_imm_32bit(u32 imm, u32 *stores, u32 *rotations)
                                                                               \
   void generate_load_reg(u32 ireg, u32 reg_index)                             \
   {                                                                           \
-    s32 load_src = arm_register_allocation[reg_index];                        \
+    u32 load_src = arm_register_allocation[reg_index];                        \
     if(load_src != mem_reg)                                                   \
     {                                                                         \
       ARM_MOV_REG_REG(0, ireg, load_src);                                     \
     }                                                                         \
     else                                                                      \
     {                                                                         \
-      ARM_LDR_IMM(0, ireg, reg_base, (reg_base_offset + (reg_index * 4)));    \
+      ARM_LDR_IMM(0, ireg, reg_base, (reg_index * 4));                        \
     }                                                                         \
   }                                                                           \
                                                                               \
   void generate_store_reg(u32 ireg, u32 reg_index)                            \
   {                                                                           \
-    s32 store_dest = arm_register_allocation[reg_index];                      \
+    u32 store_dest = arm_register_allocation[reg_index];                      \
     if(store_dest != mem_reg)                                                 \
     {                                                                         \
       ARM_MOV_REG_REG(0, store_dest, ireg);                                   \
     }                                                                         \
     else                                                                      \
     {                                                                         \
-      ARM_STR_IMM(0, ireg, reg_base, (reg_base_offset + (reg_index * 4)));    \
+      ARM_STR_IMM(0, ireg, reg_base, (reg_index * 4));                        \
     }                                                                         \
   }                                                                           \
 
@@ -583,8 +575,7 @@ u32 arm_disect_imm_32bit(u32 imm, u32 *stores, u32 *rotations)
     u32 reg_use = thumb_register_allocation[reg_index];                       \
     if(reg_use == mem_reg)                                                    \
     {                                                                         \
-      ARM_LDR_IMM(0, scratch_reg, reg_base,                                   \
-       (reg_base_offset + (reg_index * 4)));                                  \
+      ARM_LDR_IMM(0, scratch_reg, reg_base, (reg_index * 4));                 \
       return scratch_reg;                                                     \
     }                                                                         \
                                                                               \
@@ -614,34 +605,33 @@ u32 arm_disect_imm_32bit(u32 imm, u32 *stores, u32 *rotations)
   {                                                                           \
     if(thumb_register_allocation[reg_index] == mem_reg)                       \
     {                                                                         \
-      ARM_STR_IMM(0, scratch_reg, reg_base,                                   \
-       (reg_base_offset + (reg_index * 4)));                                  \
+      ARM_STR_IMM(0, scratch_reg, reg_base, (reg_index * 4));                 \
     }                                                                         \
   }                                                                           \
                                                                               \
   void generate_load_reg(u32 ireg, u32 reg_index)                             \
   {                                                                           \
-    s32 load_src = thumb_register_allocation[reg_index];                      \
+    u32 load_src = thumb_register_allocation[reg_index];                      \
     if(load_src != mem_reg)                                                   \
     {                                                                         \
       ARM_MOV_REG_REG(0, ireg, load_src);                                     \
     }                                                                         \
     else                                                                      \
     {                                                                         \
-      ARM_LDR_IMM(0, ireg, reg_base, (reg_base_offset + (reg_index * 4)));    \
+      ARM_LDR_IMM(0, ireg, reg_base, (reg_index * 4));                        \
     }                                                                         \
   }                                                                           \
                                                                               \
   void generate_store_reg(u32 ireg, u32 reg_index)                            \
   {                                                                           \
-    s32 store_dest = thumb_register_allocation[reg_index];                    \
+    u32 store_dest = thumb_register_allocation[reg_index];                    \
     if(store_dest != mem_reg)                                                 \
     {                                                                         \
       ARM_MOV_REG_REG(0, store_dest, ireg);                                   \
     }                                                                         \
     else                                                                      \
     {                                                                         \
-      ARM_STR_IMM(0, ireg, reg_base, (reg_base_offset + (reg_index * 4)));    \
+      ARM_STR_IMM(0, ireg, reg_base, (reg_index * 4));                        \
     }                                                                         \
   }                                                                           \
 
